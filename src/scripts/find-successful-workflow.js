@@ -2,6 +2,7 @@
 const { execSync } = require('child_process');
 const https = require('https');
 
+// TODO: Hardcode all those variables (minus the secret) to test against the real endaoment pipeline
 const buildUrl = process.argv[2];
 const branchName = process.argv[3];
 const mainBranchName = process.env.MAIN_BRANCH_NAME || process.argv[4];
@@ -80,6 +81,11 @@ async function findSuccessfulPipeline(pipelines, workflowName) {
   for (const pipeline of pipelines) {
     if (!pipeline.errors.length
       && commitExists(pipeline.vcs.revision)
+      // TODO: Improve the performance here using concurrent promises. Or else this happens:
+      // https://app.circleci.com/pipelines/github/endaoment/endaoment-backend/279/workflows/9c3eb7b6-2117-4a40-9e6e-a7b089f856a3/jobs/521
+
+      // To simulate problem, simply make tons of commits to a branch and have it filtered looking for a workflow. We
+      // can make the problem even worse by setting skip-branch-filter: false
       && await isWorkflowSuccessful(pipeline.id, workflowName)) {
       return pipeline;
     }
