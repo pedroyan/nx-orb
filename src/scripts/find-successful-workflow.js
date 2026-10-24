@@ -12,7 +12,8 @@ const skipBranchFilter = process.argv[8] === '1';
 const workflowName = process.argv[9];
 const circleToken = process.env.CIRCLE_API_TOKEN;
 
-const [, host, project] = buildUrl.match(/https?:\/\/([^\/]+)\/(.*)\/\d+/);
+// GitHub App projects have job URLs like https://app.circleci.com/jobs/circleci/<org-id>/<project-id>/<job-number>
+const [, host, project] = buildUrl.match(/https?:\/\/([^\/]+)\/(?:jobs\/)?(.*)\/\d+/);
 
 let BASE_SHA;
 (async () => {
@@ -107,7 +108,7 @@ async function findSuccessfulCommit(branch, workflowName) {
         const pipeline = await findSuccessfulPipeline(items, workflowName);
         return {
           next_page_token,
-          sha: pipeline ? pipeline.vcs.revision : void 0
+          sha: pipeline ? pipelineRevision(pipeline) : void 0
         };
       });
 
@@ -120,13 +121,20 @@ async function findSuccessfulCommit(branch, workflowName) {
 
 async function findSuccessfulPipeline(pipelines, workflowName) {
   for (const pipeline of pipelines) {
+    const revision = pipelineRevision(pipeline);
     if (!pipeline.errors.length
-      && commitExists(pipeline.vcs.revision)
+      && revision
+      && commitExists(revision)
       && await isWorkflowSuccessful(pipeline.id, workflowName)) {
       return pipeline;
     }
   }
   return undefined;
+}
+
+// Pipelines of GitHub App projects have no `vcs`; their commit is in the trigger parameters.
+function pipelineRevision(pipeline) {
+  return pipeline.vcs?.revision ?? pipeline.trigger_parameters?.git?.checkout_sha;
 }
 
 function commitExists(commitSha) {
